@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { useState } from "react"
+import { claimReward } from "@/app/actions/rewards"
 
 interface GameOverProps {
   distance: number
@@ -40,27 +41,18 @@ export function GameOver({
     setClaimError(null)
 
     try {
-      const response = await fetch("/api/claim-request", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          playerAddress: walletAddress,
-          coinsCollected: giftsCollected,
-        }),
-      })
+      const result = await claimReward(walletAddress, giftsCollected)
 
-      const result = await response.json()
-
-      if (result.success && result.tokensEarned) {
-        setTokensEarned(result.tokensEarned)
+      if (result.success && result.amount) {
+        setTokensEarned(result.amount)
         setClaimed(true)
-        // Note: Balance won't update immediately since this is a claim request
-        // The owner needs to process claims manually or through automation
+        // Refresh balance after successful claim
+        await onRefreshBalance()
       } else {
-        setClaimError(result.error || "Failed to submit claim request")
+        setClaimError(result.error || "Failed to claim reward")
       }
     } catch (error) {
-      setClaimError(error instanceof Error ? error.message : "Failed to submit claim request")
+      setClaimError(error instanceof Error ? error.message : "Failed to claim reward")
     } finally {
       setClaiming(false)
     }
@@ -87,7 +79,7 @@ export function GameOver({
 
       <div className="mb-6 rounded-xl border-2 border-[#22c55e] bg-[#1a1f3a]/80 px-8 py-4 text-center backdrop-blur-sm">
         <div className="text-sm text-[#22c55e]">TOKENS TO CLAIM</div>
-        <div className="font-mono text-4xl font-bold text-white">{giftsCollected * 10} SOR</div>
+        <div className="font-mono text-4xl font-bold text-white">{giftsCollected * 10} SOR 🪙</div>
       </div>
 
       <div className="mb-8 rounded-xl bg-[#1a1f3a]/60 px-6 py-3 backdrop-blur-sm">
@@ -107,10 +99,7 @@ export function GameOver({
 
       {claimed && (
         <div className="mb-6 rounded-lg border-2 border-[#22c55e] bg-[#22c55e]/10 px-6 py-3 backdrop-blur-sm">
-          <div className="text-center font-bold text-[#22c55e]">✓ Claim request submitted!</div>
-          <div className="text-center text-xs text-[#22c55e]/80">
-            {tokensEarned} SOR will be sent to your wallet shortly
-          </div>
+          <div className="text-center font-bold text-[#22c55e]">✓ {tokensEarned} tokens added to your wallet!</div>
         </div>
       )}
 
