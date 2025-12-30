@@ -65,6 +65,11 @@ export function GameMenu({
 
       const ownerAddress = process.env.NEXT_PUBLIC_OWNER_ADDRESS
       if (walletAddress.toLowerCase() === ownerAddress?.toLowerCase()) {
+        // Store in localStorage for client-side use
+        localStorage.setItem("owner_aes_key", aesKey)
+        console.log("[v0] Owner AES key stored in localStorage")
+
+        // Try to store in server memory too (but don't fail if it doesn't work)
         try {
           const response = await fetch("/api/owner-aes-key", {
             method: "POST",
@@ -73,10 +78,12 @@ export function GameMenu({
           })
 
           if (response.ok) {
-            console.log("Owner AES key stored successfully")
+            console.log("[v0] Owner AES key also stored on server")
+          } else {
+            console.log("[v0] Server storage failed, but localStorage is working")
           }
         } catch (err) {
-          console.error("Failed to store owner AES key:", err)
+          console.log("[v0] Server storage failed, but localStorage is working")
         }
       }
 

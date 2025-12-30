@@ -1,10 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { writeFile, readFile, mkdir } from "fs/promises"
-import { join } from "path"
 
-const AES_KEY_PATH = join(process.cwd(), ".data", "owner-aes-key.txt")
+// Since filesystem doesn't work on Vercel serverless, we'll use localStorage on client
+// and pass the AES key directly to server actions when needed
+let ownerAesKey: string | null = null
 
-// Store owner's AES key
+// Store owner's AES key in memory (temporary, resets on cold starts)
 export async function POST(request: NextRequest) {
   try {
     const { aesKey, ownerAddress } = await request.json()
@@ -19,11 +19,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
     }
 
-    // Create .data directory if it doesn't exist
-    await mkdir(join(process.cwd(), ".data"), { recursive: true })
+    // Store in memory (will be lost on cold start, but that's ok for demo)
+    ownerAesKey = aesKey
 
-    // Store the AES key
-    await writeFile(AES_KEY_PATH, aesKey, "utf-8")
+    console.log("[v0] Owner AES key stored in memory successfully")
 
     return NextResponse.json({ success: true })
   } catch (error) {
@@ -34,10 +33,8 @@ export async function POST(request: NextRequest) {
 
 // Retrieve owner's AES key
 export async function GET() {
-  try {
-    const aesKey = await readFile(AES_KEY_PATH, "utf-8")
-    return NextResponse.json({ aesKey })
-  } catch (error) {
+  if (!ownerAesKey) {
     return NextResponse.json({ error: "AES key not found" }, { status: 404 })
   }
+  return NextResponse.json({ aesKey: ownerAesKey })
 }

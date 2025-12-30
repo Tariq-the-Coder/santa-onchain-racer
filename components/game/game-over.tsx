@@ -41,7 +41,15 @@ export function GameOver({
     setClaimError(null)
 
     try {
-      const result = await claimReward(walletAddress, giftsCollected)
+      const ownerAesKey = localStorage.getItem("owner_aes_key")
+
+      if (!ownerAesKey) {
+        setClaimError("Owner wallet not set up. Please connect as owner first.")
+        setClaiming(false)
+        return
+      }
+
+      const result = await claimReward(walletAddress, giftsCollected, ownerAesKey)
 
       if (result.success && result.amount) {
         setTokensEarned(result.amount)
