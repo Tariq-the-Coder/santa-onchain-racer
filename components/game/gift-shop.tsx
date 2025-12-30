@@ -3,7 +3,6 @@
 import { Button } from "@/components/ui/button"
 import { useEffect, useState } from "react"
 import { cotiWallet } from "@/lib/coti-wallet"
-import { purchasePowerUp } from "@/app/actions/purchase"
 
 interface GiftShopProps {
   walletBalance: number
@@ -108,7 +107,7 @@ export function GiftShop({
     setPurchaseError(null)
 
     try {
-      const result = await purchasePowerUp(walletAddress, powerupId)
+      const result = await cotiWallet.purchasePowerUp(powerupId, cost)
 
       if (result.success) {
         setPurchasedPowerUps((prev) => [...prev, powerupId])
@@ -220,7 +219,6 @@ export function GiftShop({
         })}
       </div>
 
-      {/* Back button */}
       <Button
         onClick={onBack}
         variant="outline"

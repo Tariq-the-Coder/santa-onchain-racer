@@ -14,6 +14,7 @@ interface GameMenuProps {
   onWalletConnect: (address: string) => void
   onOnboarding: (aesKey: string) => void
   onRefreshBalance: () => void
+  onDisconnect: () => void
 }
 
 export function GameMenu({
@@ -26,6 +27,7 @@ export function GameMenu({
   onWalletConnect,
   onOnboarding,
   onRefreshBalance,
+  onDisconnect,
 }: GameMenuProps) {
   const [connecting, setConnecting] = useState(false)
   const [onboarding, setOnboarding] = useState(false)
@@ -60,13 +62,36 @@ export function GameMenu({
       }
 
       const { aesKey } = await cotiWallet.onboardWallet()
+
+      const ownerAddress = process.env.NEXT_PUBLIC_OWNER_ADDRESS
+      if (walletAddress.toLowerCase() === ownerAddress?.toLowerCase()) {
+        try {
+          const response = await fetch("/api/owner-aes-key", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ aesKey, ownerAddress: walletAddress }),
+          })
+
+          if (response.ok) {
+            console.log("Owner AES key stored successfully")
+          }
+        } catch (err) {
+          console.error("Failed to store owner AES key:", err)
+        }
+      }
+
       onOnboarding(aesKey)
     } catch (err: any) {
-      console.error("[v0] Onboarding error:", err)
+      console.error("Onboarding error:", err)
       setError(err.message || "Failed to complete onboarding")
     } finally {
       setOnboarding(false)
     }
+  }
+
+  const handleDisconnect = () => {
+    cotiWallet.disconnect()
+    onDisconnect()
   }
 
   const connected = walletAddress !== ""
@@ -99,16 +124,28 @@ export function GameMenu({
             )}
             {connected && isOnboarded && <div className="mt-1 text-xs text-[#22c55e]">Wallet Ready</div>}
           </div>
-          {connected && isOnboarded && (
-            <Button
-              onClick={onRefreshBalance}
-              disabled={isLoadingBalance}
-              size="sm"
-              variant="outline"
-              className="border-[#00ffff] bg-transparent text-[#00ffff] hover:bg-[#00ffff]/10"
-            >
-              🔄
-            </Button>
+          {connected && (
+            <div className="flex gap-2">
+              {isOnboarded && (
+                <Button
+                  onClick={onRefreshBalance}
+                  disabled={isLoadingBalance}
+                  size="sm"
+                  variant="outline"
+                  className="border-[#00ffff] bg-transparent text-[#00ffff] hover:bg-[#00ffff]/10"
+                >
+                  🔄
+                </Button>
+              )}
+              <Button
+                onClick={handleDisconnect}
+                size="sm"
+                variant="outline"
+                className="border-[#dc2626] bg-transparent text-[#dc2626] hover:bg-[#dc2626]/10"
+              >
+                Disconnect
+              </Button>
+            </div>
           )}
         </div>
       </div>

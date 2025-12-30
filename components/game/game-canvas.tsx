@@ -27,7 +27,6 @@ export function GameCanvas({ onGameOver, walletBalance }: GameCanvasProps) {
     const audio = getAudioInstance()
     audio.startBackgroundMusic()
 
-    // Set canvas size
     const resizeCanvas = () => {
       canvas.width = window.innerWidth
       canvas.height = window.innerHeight
@@ -36,7 +35,7 @@ export function GameCanvas({ onGameOver, walletBalance }: GameCanvasProps) {
     window.addEventListener("resize", resizeCanvas)
 
     let animationId: number
-    let currentLane = 1 // 0=left, 1=middle, 2=right
+    let currentLane = 1
     let targetLane = 1
     let carX = canvas.width / 2
     const laneWidth = canvas.width / 3
@@ -51,7 +50,6 @@ export function GameCanvas({ onGameOver, walletBalance }: GameCanvasProps) {
     let lastLaneSwitchTime = 0
     let perfectSwitches = 0
 
-    // Road offset for scrolling effect
     let roadOffset = 0
     let curveOffset = 0
     const curveAmplitude = 30
@@ -83,7 +81,6 @@ export function GameCanvas({ onGameOver, walletBalance }: GameCanvasProps) {
       })
     }
 
-    // Obstacles and collectibles
     interface GameObject {
       x: number
       y: number
@@ -109,7 +106,6 @@ export function GameCanvas({ onGameOver, walletBalance }: GameCanvasProps) {
         if (now - lastLaneSwitchTime < 1000 && now - lastLaneSwitchTime > 100) {
           perfectSwitches++
           gameMultiplier = Math.min(gameMultiplier * 1.05, 3.0)
-          console.log("[v0] Perfect switch! Multiplier:", gameMultiplier.toFixed(2))
         } else {
           perfectSwitches = 0
         }
@@ -139,7 +135,6 @@ export function GameCanvas({ onGameOver, walletBalance }: GameCanvasProps) {
         if (now - lastLaneSwitchTime < 1000 && now - lastLaneSwitchTime > 100) {
           perfectSwitches++
           gameMultiplier = Math.min(gameMultiplier * 1.05, 3.0)
-          console.log("[v0] Perfect switch! Multiplier:", gameMultiplier.toFixed(2))
         } else {
           perfectSwitches = 0
         }
@@ -167,11 +162,9 @@ export function GameCanvas({ onGameOver, walletBalance }: GameCanvasProps) {
         nitroEndTime = Date.now() + 3000
         gameSpeed *= 1.5
         audio.playNitroSound()
-        console.log("[v0] Nitro activated!")
       }
     }
 
-    // Input handlers
     let touchStartX = 0
     let touchStartY = 0
 
@@ -187,11 +180,9 @@ export function GameCanvas({ onGameOver, walletBalance }: GameCanvasProps) {
       const diffY = touchStartY - touchEndY
 
       if (Math.abs(diffX) > Math.abs(diffY)) {
-        // Horizontal swipe
         if (diffX > 50) switchLane("right")
         else if (diffX < -50) switchLane("left")
       } else if (diffY > 50) {
-        // Upward swipe
         activateNitro()
       }
     }
@@ -206,7 +197,6 @@ export function GameCanvas({ onGameOver, walletBalance }: GameCanvasProps) {
     canvas.addEventListener("touchend", handleTouchEnd)
     window.addEventListener("keydown", handleKeyDown)
 
-    // Spawn objects
     const spawnObject = () => {
       const now = Date.now()
       if (now - lastSpawnTime > 1500) {
@@ -227,7 +217,6 @@ export function GameCanvas({ onGameOver, walletBalance }: GameCanvasProps) {
       }
     }
 
-    // Check collision
     const checkCollision = (obj: GameObject) => {
       const carY = canvas.height - 200
       const carWidth = 80
@@ -244,7 +233,6 @@ export function GameCanvas({ onGameOver, walletBalance }: GameCanvasProps) {
           obj.collected = true
           collectedGifts += Math.floor(10 * gameMultiplier)
           audio.playGiftSound()
-          console.log("[v0] Gift collected:", collectedGifts, "Multiplier:", gameMultiplier.toFixed(2))
 
           for (let i = 0; i < 20; i++) {
             const angle = (Math.PI * 2 * i) / 20
@@ -265,7 +253,6 @@ export function GameCanvas({ onGameOver, walletBalance }: GameCanvasProps) {
         } else if (obj.type !== "gift") {
           audio.playCrashSound()
 
-          // Explosion particles
           for (let i = 0; i < 50; i++) {
             const angle = Math.random() * Math.PI * 2
             const speed = 2 + Math.random() * 8
@@ -282,7 +269,6 @@ export function GameCanvas({ onGameOver, walletBalance }: GameCanvasProps) {
             })
           }
 
-          // Cartoon stars effect around the collision
           for (let i = 0; i < 8; i++) {
             const angle = (Math.PI * 2 * i) / 8
             particles.push({
@@ -312,7 +298,6 @@ export function GameCanvas({ onGameOver, walletBalance }: GameCanvasProps) {
         p.y += p.vy
         p.life -= deltaTime
 
-        // Snow particles loop
         if (p.type === "snow") {
           if (p.y > canvas.height) {
             p.y = -10
@@ -322,7 +307,6 @@ export function GameCanvas({ onGameOver, walletBalance }: GameCanvasProps) {
           particles.splice(i, 1)
         }
 
-        // Apply gravity to non-snow particles
         if (p.type !== "snow") {
           p.vy += 0.2
         }
@@ -347,13 +331,10 @@ export function GameCanvas({ onGameOver, walletBalance }: GameCanvasProps) {
       ctx.shadowBlur = 0
     }
 
-    // Draw functions
     const drawRoad = () => {
-      // Dark road
       ctx.fillStyle = "#1a1f3a"
       ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-      // Starry sky with northern lights effect
       ctx.fillStyle = "#0a0e27"
       ctx.fillRect(0, 0, canvas.width, canvas.height * 0.4)
 
@@ -364,7 +345,6 @@ export function GameCanvas({ onGameOver, walletBalance }: GameCanvasProps) {
       ctx.fillStyle = gradient
       ctx.fillRect(0, 0, canvas.width, canvas.height * 0.4)
 
-      // Stars
       for (let i = 0; i < 50; i++) {
         const x = (i * 137) % canvas.width
         const y = (i * 211) % (canvas.height * 0.4)
@@ -372,7 +352,6 @@ export function GameCanvas({ onGameOver, walletBalance }: GameCanvasProps) {
         ctx.fillRect(x, y, 2, 2)
       }
 
-      // Lane lines with neon glow
       roadOffset = (roadOffset + gameSpeed * 2) % 80
 
       for (let lane = 1; lane < 3; lane++) {
@@ -397,7 +376,6 @@ export function GameCanvas({ onGameOver, walletBalance }: GameCanvasProps) {
       const carY = canvas.height - 200
       const targetX = currentLane * laneWidth + laneWidth / 2
 
-      // Smooth lane transition
       carX += (targetX - carX) * 0.2
 
       if (isDrifting && Date.now() - driftStartTime > 200) {
@@ -413,19 +391,16 @@ export function GameCanvas({ onGameOver, walletBalance }: GameCanvasProps) {
       const carWidth = 60
       const carHeight = 100
 
-      // Car body - main rectangle
       ctx.fillStyle = "#dc2626"
       ctx.shadowColor = "#dc2626"
       ctx.shadowBlur = 20
       ctx.fillRect(-carWidth / 2, -carHeight / 2, carWidth, carHeight)
 
-      // Windshield at front (top)
       ctx.fillStyle = "#60a5fa"
       ctx.shadowColor = "#60a5fa"
       ctx.shadowBlur = 10
       ctx.fillRect(-carWidth / 2 + 8, -carHeight / 2 + 5, carWidth - 16, 25)
 
-      // Front bumper (pointy front)
       ctx.fillStyle = "#991b1b"
       ctx.beginPath()
       ctx.moveTo(-carWidth / 2 + 5, -carHeight / 2)
@@ -434,29 +409,24 @@ export function GameCanvas({ onGameOver, walletBalance }: GameCanvasProps) {
       ctx.closePath()
       ctx.fill()
 
-      // Headlights
       ctx.fillStyle = "#fbbf24"
       ctx.shadowColor = "#fbbf24"
       ctx.shadowBlur = 15
       ctx.fillRect(-carWidth / 2 + 5, -carHeight / 2 + 2, 12, 8)
       ctx.fillRect(carWidth / 2 - 17, -carHeight / 2 + 2, 12, 8)
 
-      // Side mirrors
       ctx.fillStyle = "#4b5563"
       ctx.fillRect(-carWidth / 2 - 8, -10, 8, 20)
       ctx.fillRect(carWidth / 2, -10, 8, 20)
 
-      // Rear window
       ctx.fillStyle = "#1e3a8a"
       ctx.fillRect(-carWidth / 2 + 8, carHeight / 2 - 30, carWidth - 16, 25)
 
-      // Racing stripes
       ctx.fillStyle = "#ffffff"
       ctx.fillRect(-3, -carHeight / 2, 6, carHeight)
 
       ctx.shadowBlur = 0
 
-      // Drift trail particles
       if (gameSpeed > 0) {
         particles.push({
           x: carX,
@@ -471,7 +441,6 @@ export function GameCanvas({ onGameOver, walletBalance }: GameCanvasProps) {
         })
       }
 
-      // Nitro flames from back
       if (isNitroActive) {
         for (let i = 0; i < 3; i++) {
           particles.push({
@@ -516,14 +485,12 @@ export function GameCanvas({ onGameOver, walletBalance }: GameCanvasProps) {
           obj.rotation = (obj.rotation || 0) + 0.05
           ctx.rotate(obj.rotation)
 
-          // Gift box color variations - red, gold, blue, pink
           const giftColors = [
-            { box: "#dc2626", ribbon: "#fbbf24" }, // Red with gold ribbon
-            { box: "#3b82f6", ribbon: "#f472b6" }, // Blue with pink ribbon
-            { box: "#ec4899", ribbon: "#fbbf24" }, // Pink with gold ribbon
-            { box: "#a855f7", ribbon: "#60a5fa" }, // Purple with blue ribbon
+            { box: "#dc2626", ribbon: "#fbbf24" },
+            { box: "#3b82f6", ribbon: "#f472b6" },
+            { box: "#ec4899", ribbon: "#fbbf24" },
+            { box: "#a855f7", ribbon: "#60a5fa" },
           ]
-          // Ensure colorIndex is always a valid positive number
           const colorIndex = Math.abs(Math.floor(obj.y / 150) % giftColors.length)
           const colors = giftColors[colorIndex]
 
@@ -532,12 +499,10 @@ export function GameCanvas({ onGameOver, walletBalance }: GameCanvasProps) {
           ctx.shadowBlur = 15
           ctx.fillRect(-size / 2, -size / 2, size, size)
 
-          // Ribbon
           ctx.fillStyle = colors.ribbon
           ctx.fillRect(-size / 2, -5, size, 10)
           ctx.fillRect(-5, -size / 2, 10, size)
 
-          // Bow on top
           ctx.beginPath()
           ctx.arc(-10, -size / 2, 8, 0, Math.PI * 2)
           ctx.arc(10, -size / 2, 8, 0, Math.PI * 2)
@@ -548,16 +513,15 @@ export function GameCanvas({ onGameOver, walletBalance }: GameCanvasProps) {
           ctx.textBaseline = "middle"
           ctx.shadowBlur = 15
 
-          // Different emojis for variety
           if (obj.type === "coal") {
             ctx.shadowColor = "#ff69b4"
-            ctx.fillText("👰", 0, 0) // Bride
+            ctx.fillText("👰", 0, 0)
           } else if (obj.type === "ice") {
             ctx.shadowColor = "#ec4899"
-            ctx.fillText("💃", 0, 0) // Dancing woman
+            ctx.fillText("💃", 0, 0)
           } else {
             ctx.shadowColor = "#9333ea"
-            ctx.fillText("👸", 0, 0) // Princess
+            ctx.fillText("👸", 0, 0)
           }
         }
 
@@ -567,7 +531,6 @@ export function GameCanvas({ onGameOver, walletBalance }: GameCanvasProps) {
       ctx.shadowBlur = 0
     }
 
-    // Game loop
     let lastFrameTime = Date.now()
 
     const gameLoop = () => {
@@ -579,7 +542,6 @@ export function GameCanvas({ onGameOver, walletBalance }: GameCanvasProps) {
 
       curveOffset += deltaTime * 2
 
-      // Update game speed
       gameSpeed += 0.001
       gameDistance += gameSpeed / 60
 
@@ -587,16 +549,13 @@ export function GameCanvas({ onGameOver, walletBalance }: GameCanvasProps) {
         gameMultiplier = Math.max(1.0, gameMultiplier - deltaTime * 0.05)
       }
 
-      // Check nitro
       if (isNitroActive && Date.now() > nitroEndTime) {
         isNitroActive = false
         gameSpeed /= 1.5
-        console.log("[v0] Nitro ended")
       }
 
       updateParticles(deltaTime)
 
-      // Spawn and update objects
       spawnObject()
 
       objects.forEach((obj, index) => {
@@ -604,14 +563,12 @@ export function GameCanvas({ onGameOver, walletBalance }: GameCanvasProps) {
 
         const collision = checkCollision(obj)
         if (collision === "crash") {
-          console.log("[v0] Game Over - Collision detected")
           cancelAnimationFrame(animationId)
           audio.stopBackgroundMusic()
           onGameOver(Math.floor(gameDistance), collectedGifts)
           return
         }
 
-        // Remove off-screen objects
         if (obj.y > canvas.height + 100) {
           objects.splice(index, 1)
         }
@@ -623,7 +580,6 @@ export function GameCanvas({ onGameOver, walletBalance }: GameCanvasProps) {
 
       drawCar()
 
-      // Update React state periodically
       setSpeed(Math.floor(gameSpeed * 20))
       setDistance(Math.floor(gameDistance))
       setGifts(collectedGifts)

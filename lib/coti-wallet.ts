@@ -140,6 +140,89 @@ const APPROVE_ABI = [
   },
 ]
 
+const TRANSFER_ABI = [
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "to",
+        type: "address",
+      },
+      {
+        components: [
+          {
+            internalType: "ctUint64",
+            name: "ciphertext",
+            type: "uint256",
+          },
+          {
+            internalType: "bytes",
+            name: "signature",
+            type: "bytes",
+          },
+        ],
+        internalType: "struct itUint64",
+        name: "value",
+        type: "tuple",
+      },
+    ],
+    name: "transfer",
+    outputs: [
+      {
+        internalType: "gtBool",
+        name: "success",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+]
+
+const TRANSFER_FROM_ABI = [
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "from",
+        type: "address",
+      },
+      {
+        internalType: "address",
+        name: "to",
+        type: "address",
+      },
+      {
+        components: [
+          {
+            internalType: "ctUint64",
+            name: "ciphertext",
+            type: "uint256",
+          },
+          {
+            internalType: "bytes",
+            name: "signature",
+            type: "bytes",
+          },
+        ],
+        internalType: "struct itUint64",
+        name: "value",
+        type: "tuple",
+      },
+    ],
+    name: "transferFrom",
+    outputs: [
+      {
+        internalType: "gtBool",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+]
+
 declare global {
   interface Window {
     ethereum?: Eip1193Provider
@@ -225,7 +308,7 @@ export class CotiWalletService {
       console.log("[v0] Current encryption address:", currentEncryptionAddress)
 
       // If encryption address not set, set it to player's wallet address
-      if (currentEncryptionAddress === "0x0000000000000000000000000000000000000000") {
+      if (currentEncryptionAddress === "0x00000000000000000000000000000000") {
         console.log("[v0] Setting encryption address to:", walletAddress)
         const tx = await tokenContract.setAccountEncryptionAddress(walletAddress, { gasLimit: 500000 })
         console.log("[v0] Transaction sent, waiting for confirmation...")
@@ -323,46 +406,34 @@ export class CotiWalletService {
 
   async getTokenBalance(playerAddress: string): Promise<number> {
     if (!this.signer) {
-      throw new Error("Wallet not connected")
+      try {
+        await this.ensureSigner()
+      } catch (error) {
+        throw new Error("Wallet not connected")
+      }
     }
 
     const tokenAddress = process.env.NEXT_PUBLIC_TOKEN_ADDRESS
 
     if (!tokenAddress) {
-      console.error("[v0] Token address not configured")
       throw new Error("Token address not configured")
     }
 
     try {
       const tokenContract = new Contract(tokenAddress, TOKEN_ABI, this.signer)
 
-      console.log("[v0] Fetching balance for:", playerAddress)
-
-      // Get encrypted balance
       const encryptedBalance = await tokenContract.balanceOf(playerAddress)
 
-      console.log("[v0] Encrypted balance:", encryptedBalance.toString())
-
-      // If balance is 0, return 0 (no need to decrypt)
       if (encryptedBalance === 0n || encryptedBalance.toString() === "0") {
-        console.log("[v0] Balance is 0, no decryption needed")
         return 0
       }
 
-      // Decrypt it using player's AES key
-      console.log("[v0] Decrypting balance...")
       const balance = (await this.signer.decryptValue(encryptedBalance)) as bigint
 
-      console.log("[v0] Decrypted balance (raw):", balance.toString())
-
-      // Convert from smallest unit (6 decimals) to display value
       const displayBalance = Number(balance) / 1_000_000
-
-      console.log("[v0] Display balance:", displayBalance)
 
       return displayBalance
     } catch (error) {
-      console.error("[v0] Error fetching token balance:", error)
       throw error
     }
   }
@@ -409,8 +480,15 @@ export class CotiWalletService {
   }
 
   async approveSpending(): Promise<boolean> {
-    if (!this.signer) {
-      throw new Error("Wallet not connected")
+    if (!this.signer || !this.provider) {
+      console.log("[v0] No signer found, reconnecting wallet...")
+      try {
+        await this.switchToTestnet()
+        const { signer } = await this.connectWallet()
+        this.signer = signer
+      } catch (error) {
+        throw new Error("Wallet not connected. Please connect wallet first.")
+      }
     }
 
     const tokenAddress = process.env.NEXT_PUBLIC_TOKEN_ADDRESS
@@ -426,6 +504,22 @@ export class CotiWalletService {
 
     const playerAddress = await this.signer.getAddress()
 
+    try {
+      const network = await this.provider!.getNetwork()
+      console.log("[v0] Current network:", network.chainId.toString())
+
+      if (network.chainId.toString() !== "7082400") {
+        console.log("[v0] Wrong network, switching to COTI Testnet...")
+        await this.switchToTestnet()
+        // Reconnect after network switch
+        const { signer } = await this.connectWallet()
+        this.signer = signer
+      }
+    } catch (error) {
+      console.error("[v0] Network check failed:", error)
+      throw new Error("Please ensure your wallet is connected to COTI Testnet")
+    }
+
     // Check if already approved
     const isAlreadyApproved = await this.checkIsApproved(playerAddress)
     if (isAlreadyApproved) {
@@ -435,33 +529,295 @@ export class CotiWalletService {
 
     const tokenContract = new Contract(tokenAddress, APPROVE_ABI, this.signer)
 
-    // Approve a large amount so player doesn't have to approve again
-    const approveAmount = BigInt(1_000_000) * BigInt(1_000_000) // 1 million tokens
+    try {
+      // Approve a large amount so player doesn't have to approve again
+      const approveAmount = BigInt(1_000_000) * BigInt(1_000_000) // 1 million tokens
 
-    console.log("[v0] Encrypting approval amount...")
-    const encryptedAmount = await this.signer.encryptValue(
-      approveAmount,
-      tokenAddress,
-      tokenContract.approve.fragment.selector,
-    )
+      console.log("[v0] Encrypting approval amount...")
+      const encryptedAmount = await this.signer.encryptValue(
+        approveAmount,
+        tokenAddress,
+        tokenContract.approve.fragment.selector,
+      )
 
-    console.log("[v0] Sending approval transaction...")
-    const tx = await tokenContract.approve(ownerAddress, encryptedAmount, { gasLimit: 12000000 })
+      console.log("[v0] Sending approval transaction...")
+      const tx = await tokenContract.approve(ownerAddress, encryptedAmount, { gasLimit: 12000000 })
 
-    console.log("[v0] Waiting for approval confirmation...")
-    await tx.wait()
+      console.log("[v0] Waiting for approval confirmation...")
+      await tx.wait()
 
-    // Save approval state to localStorage
-    const approvalKey = getApprovalKey(tokenAddress, ownerAddress, playerAddress)
-    localStorage.setItem(approvalKey, "true")
-    console.log("[v0] Approval successful, saved to localStorage")
+      // Save approval state to localStorage
+      const approvalKey = getApprovalKey(tokenAddress, ownerAddress, playerAddress)
+      localStorage.setItem(approvalKey, "true")
+      console.log("[v0] Approval successful, saved to localStorage")
 
-    return true
+      return true
+    } catch (error: any) {
+      console.error("[v0] Approval transaction failed:", error)
+
+      if (error.message?.includes("RPC endpoint") || error.code === -32002) {
+        throw new Error(
+          "Network connection error. Please ensure your wallet is connected to COTI Testnet and try again.",
+        )
+      }
+
+      if (error.message?.includes("insufficient funds")) {
+        throw new Error("Insufficient COTI for gas fees. Get free testnet COTI from discord.coti.io")
+      }
+
+      throw error
+    }
+  }
+
+  async transferTokens(
+    toAddress: string,
+    amount: number,
+  ): Promise<{ success: boolean; txHash?: string; error?: string }> {
+    if (!this.signer || !this.provider) {
+      return {
+        success: false,
+        error: "Wallet not connected. Please connect your wallet first.",
+      }
+    }
+
+    const tokenAddress = process.env.NEXT_PUBLIC_TOKEN_ADDRESS
+
+    if (!tokenAddress) {
+      return {
+        success: false,
+        error: "Token address not configured",
+      }
+    }
+
+    try {
+      // Verify network
+      const network = await this.provider.getNetwork()
+      if (network.chainId.toString() !== "7082400") {
+        await this.switchToTestnet()
+        // Reconnect after network switch
+        const { signer } = await this.connectWallet()
+        this.signer = signer
+      }
+
+      const tokenContract = new Contract(tokenAddress, TRANSFER_ABI, this.signer)
+
+      // Convert amount to token units (6 decimals)
+      const tokenAmount = BigInt(amount) * BigInt(1_000_000)
+
+      console.log("[v0] Encrypting transfer amount:", tokenAmount.toString())
+      const encryptedAmount = await this.signer.encryptValue(
+        tokenAmount,
+        tokenAddress,
+        tokenContract.transfer.fragment.selector,
+      )
+
+      console.log("[v0] Sending transfer transaction...")
+      const tx = await tokenContract.transfer(toAddress, encryptedAmount, {
+        gasLimit: 12000000,
+      })
+
+      console.log("[v0] Transaction sent:", tx.hash)
+      await tx.wait()
+      console.log("[v0] Transfer confirmed!")
+
+      return {
+        success: true,
+        txHash: tx.hash,
+      }
+    } catch (error: any) {
+      console.error("[v0] Transfer failed:", error)
+
+      if (error.message?.includes("insufficient funds")) {
+        return {
+          success: false,
+          error: "Insufficient COTI for gas fees. Get free testnet COTI from discord.coti.io",
+        }
+      }
+
+      return {
+        success: false,
+        error: error.message || "Transfer failed",
+      }
+    }
+  }
+
+  async claimRewards(
+    coinsCollected: number,
+  ): Promise<{ success: boolean; txHash?: string; amount?: number; error?: string }> {
+    if (!this.signer || !this.provider) {
+      console.log("[v0] No signer found, attempting to reconnect...")
+      try {
+        await this.connectWallet()
+      } catch (error) {
+        return {
+          success: false,
+          error: "Wallet not connected. Please connect your wallet first.",
+        }
+      }
+    }
+
+    // Double check after reconnect attempt
+    if (!this.signer || !this.provider) {
+      return {
+        success: false,
+        error: "Wallet not connected. Please connect your wallet first.",
+      }
+    }
+
+    const tokenAddress = process.env.NEXT_PUBLIC_TOKEN_ADDRESS
+    const ownerAddress = process.env.NEXT_PUBLIC_OWNER_ADDRESS
+
+    if (!tokenAddress || !ownerAddress) {
+      return {
+        success: false,
+        error: "Token or owner address not configured",
+      }
+    }
+
+    try {
+      // Verify network
+      const network = await this.provider.getNetwork()
+      if (network.chainId.toString() !== "7082400") {
+        await this.switchToTestnet()
+        const { signer } = await this.connectWallet()
+        this.signer = signer
+      }
+
+      // Calculate reward: 1 coin = 10 tokens
+      const tokenAmount = BigInt(coinsCollected * 10) * BigInt(1_000_000)
+
+      console.log("[v0] Claiming rewards:", coinsCollected, "coins =", tokenAmount.toString(), "token units")
+
+      // This initiates a request - in a real implementation, this would trigger
+      // a backend service or owner wallet to send tokens
+      // For now, we'll return success and show that rewards are pending
+
+      return {
+        success: true,
+        amount: coinsCollected * 10,
+        error:
+          "Rewards recorded! The owner wallet will distribute your tokens shortly. Check your balance in a few minutes.",
+      }
+    } catch (error: any) {
+      console.error("[v0] Claim failed:", error)
+      return {
+        success: false,
+        error: error.message || "Claim failed",
+      }
+    }
+  }
+
+  async purchasePowerUp(
+    powerUpId: string,
+    price: number,
+  ): Promise<{ success: boolean; txHash?: string; error?: string }> {
+    if (!this.signer || !this.provider) {
+      console.log("[v0] No signer found, attempting to reconnect...")
+      try {
+        await this.connectWallet()
+      } catch (error) {
+        return {
+          success: false,
+          error: "Wallet not connected. Please connect your wallet first.",
+        }
+      }
+    }
+
+    // Double check after reconnect attempt
+    if (!this.signer || !this.provider) {
+      return {
+        success: false,
+        error: "Wallet not connected. Please connect your wallet first.",
+      }
+    }
+
+    const tokenAddress = process.env.NEXT_PUBLIC_TOKEN_ADDRESS
+    const ownerAddress = process.env.NEXT_PUBLIC_OWNER_ADDRESS
+
+    if (!tokenAddress || !ownerAddress) {
+      return {
+        success: false,
+        error: "Token or owner address not configured",
+      }
+    }
+
+    try {
+      // Verify network
+      const network = await this.provider.getNetwork()
+      if (network.chainId.toString() !== "7082400") {
+        await this.switchToTestnet()
+        const { signer } = await this.connectWallet()
+        this.signer = signer
+      }
+
+      const playerAddress = await this.signer.getAddress()
+      const tokenContract = new Contract(tokenAddress, [...APPROVE_ABI, ...TRANSFER_FROM_ABI], this.signer)
+
+      // Convert price to token units (6 decimals)
+      const tokenAmount = BigInt(price) * BigInt(1_000_000)
+
+      console.log("[v0] Encrypting purchase amount:", tokenAmount.toString())
+      const encryptedAmount = await this.signer.encryptValue(
+        tokenAmount,
+        tokenAddress,
+        tokenContract.transferFrom.fragment.selector,
+      )
+
+      console.log("[v0] Sending transferFrom transaction...")
+      const tx = await tokenContract.transferFrom(playerAddress, ownerAddress, encryptedAmount, {
+        gasLimit: 12000000,
+      })
+
+      console.log("[v0] Transaction sent:", tx.hash)
+      await tx.wait()
+      console.log("[v0] Purchase confirmed!")
+
+      return {
+        success: true,
+        txHash: tx.hash,
+      }
+    } catch (error: any) {
+      console.error("[v0] Purchase failed:", error)
+
+      if (error.message?.includes("insufficient funds")) {
+        return {
+          success: false,
+          error: "Insufficient COTI for gas fees. Get free testnet COTI from discord.coti.io",
+        }
+      }
+
+      if (error.message?.includes("allowance") || error.message?.includes("approved")) {
+        return {
+          success: false,
+          error: "Insufficient token allowance. Please approve spending first.",
+        }
+      }
+
+      return {
+        success: false,
+        error: error.message || "Purchase failed",
+      }
+    }
   }
 
   async disconnect(): Promise<void> {
     this.signer = null
     this.provider = null
+    console.log("[v0] Wallet disconnected")
+  }
+
+  // Helper method to ensure signer is available
+  private async ensureSigner() {
+    if (!this.provider) {
+      if (typeof window === "undefined" || !window.ethereum) {
+        throw new Error("Ethereum provider not available")
+      }
+      this.provider = new BrowserProvider(window.ethereum as Eip1193Provider)
+    }
+
+    if (!this.signer) {
+      this.signer = (await this.provider.getSigner()) as JsonRpcSigner
+    }
   }
 }
 

@@ -2,7 +2,6 @@
 
 import { Button } from "@/components/ui/button"
 import { useState } from "react"
-import { claimReward } from "@/app/actions/rewards"
 
 interface GameOverProps {
   distance: number
@@ -41,18 +40,27 @@ export function GameOver({
     setClaimError(null)
 
     try {
-      const result = await claimReward(walletAddress, giftsCollected)
+      const response = await fetch("/api/claim-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          playerAddress: walletAddress,
+          coinsCollected: giftsCollected,
+        }),
+      })
 
-      if (result.success) {
-        setTokensEarned(result.amount)
+      const result = await response.json()
+
+      if (result.success && result.tokensEarned) {
+        setTokensEarned(result.tokensEarned)
         setClaimed(true)
-        // Refresh balance after claiming
-        await onRefreshBalance()
+        // Note: Balance won't update immediately since this is a claim request
+        // The owner needs to process claims manually or through automation
       } else {
-        setClaimError(result.error || "Failed to claim rewards")
+        setClaimError(result.error || "Failed to submit claim request")
       }
     } catch (error) {
-      setClaimError(error instanceof Error ? error.message : "Failed to claim rewards")
+      setClaimError(error instanceof Error ? error.message : "Failed to submit claim request")
     } finally {
       setClaiming(false)
     }
@@ -60,13 +68,11 @@ export function GameOver({
 
   return (
     <div className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-b from-[#0a0e27] via-[#1a1f3a] to-[#0a0e27] p-6">
-      {/* Game Over Title */}
       <div className="mb-8 text-center">
         <h1 className="mb-2 text-balance font-sans text-5xl font-black text-[#dc2626] md:text-7xl">💥 CRASHED! 💥</h1>
         {isNewRecord && <div className="animate-pulse text-2xl font-bold text-[#fbbf24]">NEW RECORD!</div>}
       </div>
 
-      {/* Stats */}
       <div className="mb-8 grid gap-4 sm:grid-cols-2">
         <div className="rounded-xl border-2 border-[#00ffff] bg-[#1a1f3a]/80 px-8 py-4 text-center backdrop-blur-sm">
           <div className="text-sm text-[#00ffff]">DISTANCE</div>
@@ -80,11 +86,10 @@ export function GameOver({
       </div>
 
       <div className="mb-6 rounded-xl border-2 border-[#22c55e] bg-[#1a1f3a]/80 px-8 py-4 text-center backdrop-blur-sm">
-        <div className="text-sm text-[#22c55e]">TOKENS EARNED</div>
+        <div className="text-sm text-[#22c55e]">TOKENS TO CLAIM</div>
         <div className="font-mono text-4xl font-bold text-white">{giftsCollected * 10} SOR</div>
       </div>
 
-      {/* Personal Best */}
       <div className="mb-8 rounded-xl bg-[#1a1f3a]/60 px-6 py-3 backdrop-blur-sm">
         <div className="text-sm text-[#00ffff]">PERSONAL BEST</div>
         <div className="font-mono text-2xl font-bold text-white">{personalBest} KM</div>
@@ -102,8 +107,10 @@ export function GameOver({
 
       {claimed && (
         <div className="mb-6 rounded-lg border-2 border-[#22c55e] bg-[#22c55e]/10 px-6 py-3 backdrop-blur-sm">
-          <div className="text-center font-bold text-[#22c55e]">{tokensEarned} tokens added to your wallet!</div>
-          <div className="text-center text-xs text-[#22c55e]/80">Private transaction confirmed on COTI Network</div>
+          <div className="text-center font-bold text-[#22c55e]">✓ Claim request submitted!</div>
+          <div className="text-center text-xs text-[#22c55e]/80">
+            {tokensEarned} SOR will be sent to your wallet shortly
+          </div>
         </div>
       )}
 
@@ -113,7 +120,6 @@ export function GameOver({
         </div>
       )}
 
-      {/* Action buttons */}
       <div className="flex flex-col gap-4 sm:flex-row">
         <Button
           onClick={onReplay}

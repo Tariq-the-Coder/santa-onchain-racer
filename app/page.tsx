@@ -21,7 +21,6 @@ export default function Home() {
   const [personalBest, setPersonalBest] = useState(0)
 
   useEffect(() => {
-    // Load personal best from localStorage
     const saved = localStorage.getItem("personalBest")
     if (saved) setPersonalBest(Number.parseInt(saved))
 
@@ -37,13 +36,11 @@ export default function Home() {
 
   const fetchTokenBalance = async () => {
     if (!walletAddress || !isOnboarded) {
-      console.log("[v0] Cannot fetch balance: wallet not connected or not onboarded")
       return
     }
 
     const signer = cotiWallet.getSigner()
     if (!signer) {
-      console.log("[v0] Wallet signer not available, skipping balance fetch")
       return
     }
 
@@ -51,9 +48,8 @@ export default function Home() {
     try {
       const balance = await cotiWallet.getTokenBalance(walletAddress)
       setWalletBalance(balance)
-      console.log("[v0] Token balance updated:", balance)
     } catch (error) {
-      console.error("[v0] Failed to fetch token balance:", error)
+      console.error("Failed to fetch token balance:", error)
     } finally {
       setIsLoadingBalance(false)
     }
@@ -90,6 +86,16 @@ export default function Home() {
     setTimeout(() => fetchTokenBalance(), 1000)
   }
 
+  const handleDisconnect = () => {
+    setWalletAddress("")
+    setIsOnboarded(false)
+    setAesKey(null)
+    setWalletBalance(0)
+    localStorage.removeItem("walletAddress")
+    localStorage.removeItem("isOnboarded")
+    localStorage.removeItem("aesKey")
+  }
+
   return (
     <main className="relative h-screen w-screen overflow-hidden bg-[#0a0e27]">
       {gameState === "menu" && (
@@ -103,6 +109,7 @@ export default function Home() {
           onWalletConnect={handleWalletConnect}
           onOnboarding={handleOnboarding}
           onRefreshBalance={fetchTokenBalance}
+          onDisconnect={handleDisconnect}
         />
       )}
 
